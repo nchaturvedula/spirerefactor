@@ -77,6 +77,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		TrustDomain:   a.c.TrustDomain,
 		PluginConfigs: a.c.PluginConfigs,
 	})
+
+	fmt.Println("after plugin is loaded")
 	if err != nil {
 		return err
 	}
@@ -263,6 +265,8 @@ func (a *Agent) newSVIDStoreService(cache *storecache.Cache, cat catalog.Catalog
 }
 
 func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, attestor workload_attestor.Attestor) endpoints.Server {
+	fmt.Println("in newEndpoints")
+	fmt.Println("added a new line")
 	return endpoints.New(endpoints.Config{
 		BindAddr:                      a.c.BindAddress,
 		Attestor:                      attestor,
