@@ -35,6 +35,7 @@ type Manager interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
+	MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error)
 }
 
 type Attestor interface {
@@ -63,12 +64,33 @@ func New(c Config) *Handler {
 
 func (h *Handler) MintX509SVID(ctx context.Context, req *workload.MintX509SVIDRequest) (resp *workload.MintX509SVIDResponse, err error) {
 	fmt.Printf("yihsuanc: in handler.go, MintX509SVID, %s\n", time.Now())
-	return nil, nil
+
+	if req.SpiffeId == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "missing spiffe id")
+	}
+
+	resp = new(workload.MintX509SVIDResponse)
+
+	x509svid, err := h.c.Manager.MintX509SVID(ctx, req.SpiffeId)
+
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "mint x509 client call failed", err)
+	}
+
+	if x509svid == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "that x509svid is nil. ", err)
+	}
+
+	resp.Svids = append(resp.Svids, &workload.X509SVID{
+		SpiffeId: req.SpiffeId,
+		X509Svid: x509svid.CertChain,
+	})
+	return resp, nil
 }
 
 // FetchJWTSVID processes request for a JWT-SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
-	fmt.Printf("yihsuanc: in handler.go, FetchJWTSVID, %s\n", time.Now())
+	fmt.Printf("yihsuanc: (handler.go) FetchJWTSVID, %s\n", time.Now())
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")

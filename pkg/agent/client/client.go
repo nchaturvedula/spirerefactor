@@ -216,18 +216,24 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509
 	}
 	defer connection.Release()
 
+	fmt.Println("yihsuanc: (client.go MintX509SVID) about to generateKey")
+
 	key, err := generateKey()
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to generate key: %w", err)
 	}
 
+	fmt.Println("yihsuanc: (client.go MintX509SVID) about to get id from spiffeID")
+
 	id, err := spiffeid.FromString(spiffeID)
 	if err != nil {
 		return nil, err
 	}
 
-	dnsnames := make([]string, 3)
+	fmt.Println("yihsuanc: (client.go MintX509SVID) after creating id")
+
+	dnsnames := []string{"example.org"}
 
 	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
 		URIs:     []*url.URL{id.URL()},
@@ -238,8 +244,10 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509
 
 	resp, err := svidClient.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
-		Ttl: (int32(time.Hour.Seconds())),
+		Ttl: (int32(time.Minute.Seconds())),
 	})
+
+	fmt.Println("yihsuanc: (client.go MintX509SVID) after calling svidClient.MintX509SVID")
 
 	if err != nil {
 		return nil, fmt.Errorf("unable to mint SVID: %w", err)
@@ -248,6 +256,8 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509
 	if len(resp.Svid.CertChain) == 0 {
 		return nil, fmt.Errorf("missing SVID chain")
 	}
+
+	fmt.Println(resp)
 
 	return resp.Svid, nil
 

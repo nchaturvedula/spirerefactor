@@ -48,7 +48,7 @@ func (c *mintCommand) run(ctx context.Context, env *commoncli.Env, client *workl
 	fmt.Println("yihsuanc: (mint_x509.go MintX509SVID) preparing MintX509SVID")
 	fmt.Printf("yihsuanc: ctx=%s\n", ctx)
 
-	fmt.Printf("yihsuanc: in fetch_jwt.go, run, %s\n", time.Now())
+	fmt.Printf("yihsuanc: mint_x509.go, run, %s\n", time.Now())
 	svidResp, err := c.mintX509SVID(ctx, client)
 	if err != nil {
 		return err

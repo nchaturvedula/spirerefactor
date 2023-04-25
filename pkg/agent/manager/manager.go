@@ -74,6 +74,8 @@ type Manager interface {
 
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
+
+	MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error)
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -229,6 +231,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error) {
+	fmt.Println("yihsuanc: (manager.go) fetching jwt svid kha")
 	now := m.clk.Now()
 
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
@@ -377,4 +380,21 @@ func (m *manager) deleteSVID() {
 	if err := m.storage.DeleteSVID(); err != nil {
 		m.c.Log.WithError(err).Error("Failed to remove SVID")
 	}
+}
+
+func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error) {
+	fmt.Println("yihsuanc: (manager.go) MintX509SVID")
+	resp, err := m.client.MintX509SVID(ctx, spiffeID)
+
+	if err != nil {
+
+		m.c.Log.WithError(err).Error("mint client returned error")
+		m.c.Log.WithError(err).Error(err)
+	}
+
+	if resp == nil {
+		m.c.Log.WithError(err).Error("mint client returned nil")
+	}
+
+	return nil, nil
 }
