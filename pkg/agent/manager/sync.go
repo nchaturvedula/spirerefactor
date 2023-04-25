@@ -241,6 +241,11 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 			RegistrationEntries: storeEntries,
 		}, nil
 }
+func CSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, []byte, error) {
+
+	return newCSR(spiffeID, keyType)
+
+}
 
 func newCSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, []byte, error) {
 	pk, err := keyType.GenerateSigner()

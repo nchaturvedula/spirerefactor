@@ -19,6 +19,8 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+
+	//"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -47,7 +49,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
-
+	Grpcrunner(ctx context.Context, CSR []byte) (*svidv1.MintX509SVIDResponse, error)
 	// Release releases any resources that were held by this Client, if any.
 	Release()
 }
@@ -463,4 +465,26 @@ func (c *client) newAgentClient(ctx context.Context) (agentv1.AgentClient, *node
 	}
 	c.connections.AddRef()
 	return c.createNewAgentClient(c.connections.conn), c.connections, nil
+}
+
+func (c *client) Grpcrunner(ctx context.Context, CSR []byte) (*svidv1.MintX509SVIDResponse, error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), rpcTimeout)
+	defer cancel()
+	svidClient, nodeConn, err := c.newSVIDClient(ctx)
+	if err != nil {
+		fmt.Print("Could not create SVID client")
+		panic(err)
+	}
+	resp, err := svidClient.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
+		Csr: []byte(CSR),
+		Ttl: int32(1),
+	})
+	if err != nil {
+		fmt.Print("Could not retrieve SVID")
+		panic(err)
+	}
+
+	nodeConn.Release()
+	return resp, err
 }

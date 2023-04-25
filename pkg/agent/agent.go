@@ -10,15 +10,25 @@ import (
 	"sync"
 	"time"
 
+	"os"
+	// "io"
+	//"log"
+	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	//"github.com/docker/docker/runconfig/opts"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
+
+	//"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
+
+	//"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/jointoken"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
@@ -32,6 +42,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	//svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
+	//"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
 type Agent struct {
@@ -96,6 +108,18 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache()
 
+	spifid := spiffeid.RequireFromString("spiffe://spire.splunkidentity/indexer1")
+	keyType, err := workloadkey.KeyTypeFromString("rsa-2048")
+	if err != nil {
+		fmt.Print("keytype error")
+		panic(err)
+	}
+	pk, CSR, err := manager.CSR(spifid, keyType)
+	if err != nil {
+		fmt.Print("CSR error")
+		panic(err)
+	}
+
 	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
@@ -135,6 +159,30 @@ func (a *Agent) Run(ctx context.Context) error {
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
+	_ = pk
+
+	nSvid, err := manager.Getclient(ctx, CSR)
+	if err != nil {
+		fmt.Print("new svidd error")
+		panic(err)
+	}
+	fmt.Printf("Client obj created")
+	cert := nSvid.Svid.CertChain
+	file, err1 := os.Create("nsvid.pem")
+	if err1 != nil {
+		fmt.Print("creating svid.pem error")
+		panic(err1)
+	}
+
+	for i := 0; i < len(cert); i++ {
+		_, err2 := file.Write(cert[i])
+		if err2 != nil {
+			fmt.Print("write error")
+			panic(err2)
+		}
+
+	}
+	fmt.Printf("svid created")
 	return err
 }
 
@@ -346,3 +394,20 @@ func errString(err error) string {
 	}
 	return ""
 }
+
+// func grpcrunner(ctx context.Context) (*svidv1.MintX509SVIDResponse){
+
+// 	ctx, cancel := context.WithCancel(ctx)
+// 	defer cancel()
+// 	s,n,err:= client.newSVIDClient(ctx)
+
+// 	resp, err := svidv1.SVIDClient.MintX509SVID(ctx , &svidv1.MintX509SVIDRequest{
+// 		Csr: []byte ("test"),
+// 		Ttl: int32 (1),
+// 	})
+// 	if err != nil {
+//         log.Fatalf("Could not retrieve SVID: %v", err)
+// 	}
+// 	return resp
+
+//}

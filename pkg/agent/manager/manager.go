@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	//"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -11,12 +12,16 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/backoff"
+
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
+
+	//"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -74,6 +79,8 @@ type Manager interface {
 
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
+
+	Getclient(ctx context.Context, CSR []byte) (*svidv1.MintX509SVIDResponse, error)
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -161,6 +168,10 @@ func (m *manager) Initialize(ctx context.Context) error {
 		m.deleteSVID()
 	}
 	return err
+}
+
+func (m *manager) Getclient(ctx context.Context, CSR []byte) (*svidv1.MintX509SVIDResponse, error) {
+	return m.client.Grpcrunner(ctx, CSR)
 }
 
 func (m *manager) Run(ctx context.Context) error {
