@@ -61,8 +61,14 @@ func New(c Config) *Handler {
 	}
 }
 
+func (h *Handler) MintX509SVID(ctx context.Context, req *workload.MintX509SVIDRequest) (resp *workload.MintX509SVIDResponse, err error) {
+	fmt.Printf("yihsuanc: in handler.go, MintX509SVID, %s\n", time.Now())
+	return nil, nil
+}
+
 // FetchJWTSVID processes request for a JWT-SVID
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
+	fmt.Printf("yihsuanc: in handler.go, FetchJWTSVID, %s\n", time.Now())
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")

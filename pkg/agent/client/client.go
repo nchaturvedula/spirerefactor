@@ -3,10 +3,14 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/url"
 	"sync"
 	"time"
 
@@ -47,6 +51,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
+	MintX509SVID(ctx context.Context, spiffeID string) (*types.X509SVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -185,6 +190,68 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	}, nil
 }
 
+func generateKey() (crypto.Signer, error) {
+	return ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+}
+
+func ttlToSeconds(ttl time.Duration) int32 {
+	return int32((ttl + time.Second - 1) / time.Second)
+}
+
+func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509SVID, error) {
+	fmt.Println("yihsuanc: client.go, enter MintX509SVID")
+
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
+	svidClient, connection, err := c.newSVIDClient(ctx)
+
+	fmt.Println("yihsuanc: (client.go MintX509SVID) after newSVIDClient")
+
+	if err != nil {
+		return nil, err
+	}
+	defer connection.Release()
+
+	key, err := generateKey()
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to generate key: %w", err)
+	}
+
+	id, err := spiffeid.FromString(spiffeID)
+	if err != nil {
+		return nil, err
+	}
+
+	dnsnames := make([]string, 3)
+
+	csr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{
+		URIs:     []*url.URL{id.URL()},
+		DNSNames: dnsnames,
+	}, key)
+
+	// csr :=
+
+	resp, err := svidClient.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
+		Csr: csr,
+		Ttl: (int32(time.Hour.Seconds())),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to mint SVID: %w", err)
+	}
+
+	if len(resp.Svid.CertChain) == 0 {
+		return nil, fmt.Errorf("missing SVID chain")
+	}
+
+	return resp.Svid, nil
+
+}
 func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()

@@ -46,6 +46,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"validate": func() (cli.Command, error) {
 			return validate.NewValidateCommand(), nil
 		},
+		"mint x509": func() (cli.Command, error) {
+			return api.NewMintCommand(), nil
+		},
 	}
 
 	exitStatus, err := c.Run()

@@ -2,6 +2,8 @@ module github.com/spiffe/spire
 
 go 1.19
 
+replace github.com/spiffe/go-spiffe/v2 v2.1.3 => /Users/yihsuanc/splunk/github/go-spiffe/v2
+
 require (
 	cloud.google.com/go/iam v0.13.0
 	cloud.google.com/go/kms v1.10.0
