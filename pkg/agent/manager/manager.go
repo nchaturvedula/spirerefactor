@@ -75,7 +75,7 @@ type Manager interface {
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
 
-	MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -382,7 +382,7 @@ func (m *manager) deleteSVID() {
 	}
 }
 
-func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error) {
+func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error) {
 	fmt.Println("yihsuanc: (manager.go) MintX509SVID")
 	resp, err := m.client.MintX509SVID(ctx, spiffeID)
 
@@ -396,5 +396,5 @@ func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) (*client.X5
 		m.c.Log.WithError(err).Error("mint client returned nil")
 	}
 
-	return nil, nil
+	return resp, nil
 }

@@ -35,7 +35,7 @@ type Manager interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
-	MintX509SVID(ctx context.Context, spiffeID string) (*client.X509SVID, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
 }
 
 type Attestor interface {
@@ -81,10 +81,8 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *workload.MintX509SVIDRe
 		return nil, status.Errorf(codes.InvalidArgument, "that x509svid is nil. ", err)
 	}
 
-	resp.Svids = append(resp.Svids, &workload.X509SVID{
-		SpiffeId: req.SpiffeId,
-		X509Svid: x509svid.CertChain,
-	})
+	resp.Svids = x509svid
+
 	return resp, nil
 }
 

@@ -51,7 +51,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
-	MintX509SVID(ctx context.Context, spiffeID string) (*types.X509SVID, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -198,7 +198,7 @@ func ttlToSeconds(ttl time.Duration) int32 {
 	return int32((ttl + time.Second - 1) / time.Second)
 }
 
-func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509SVID, error) {
+func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error) {
 	fmt.Println("yihsuanc: client.go, enter MintX509SVID")
 
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
@@ -259,7 +259,7 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) (*types.X509
 
 	fmt.Println(resp)
 
-	return resp.Svid, nil
+	return resp.Svid.CertChain, nil
 
 }
 func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {
