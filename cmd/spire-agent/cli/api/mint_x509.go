@@ -12,6 +12,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -20,14 +21,14 @@ import (
 type mintCommand struct {
 	printer   cliprinter.Printer
 	env       *commoncli.Env
-	spiffeID  string
+	serverId  string
 	writePath string
 }
 
 type mintResult struct {
 	X509SVID   [][]byte `json:"x509_svid"`
 	PrivateKey []byte   `json:"private_key"`
-	// RootCAs    [][]byte `json:"root_cas"`
+	RootCAs    [][]byte `json:"root_cas"`
 }
 
 func NewMintCommand() cli.Command {
@@ -39,7 +40,7 @@ func newMintCommand(env *commoncli.Env, clientMaker workloadClientMaker) cli.Com
 }
 
 func (c *mintCommand) appendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID subject (optional)")
+	fs.StringVar(&c.serverId, "serverId", "", "server id subject (optional)")
 	fs.StringVar(&c.writePath, "write", "", "Write SVID data to the specified path (optional; only available for pretty output format)")
 	outputValue := cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintX509)
 	fs.Var(outputValue, "format", "deprecated; use -output")
@@ -54,14 +55,24 @@ func (c *mintCommand) synopsis() string {
 }
 
 func (c *mintCommand) run(ctx context.Context, env *commoncli.Env, client *workloadClient) error {
-	// _ = c.env.Println("mint x509 command is triggered.")
-	fmt.Printf("yihsuanc: spiffeID=%s\n", c.spiffeID)
+	//TODO: perhaps there's an another way to define the argument is required or optional
+	if c.serverId == "" {
+		return fmt.Errorf("server id is required")
+	}
+
+	fmt.Printf("yihsuanc: guid=%s\n", c.serverId)
+
+	id, err := spiffeid.FromStringf("spiffe://example.org/testing/%s", c.serverId)
+	if err != nil {
+		return fmt.Errorf("cannot form a spiffe id")
+	}
 
 	fmt.Println("yihsuanc: (mint_x509.go MintX509SVID) preparing MintX509SVID")
 	fmt.Printf("yihsuanc: ctx=%s\n", ctx)
 
 	fmt.Printf("yihsuanc: mint_x509.go, run, %s\n", time.Now())
-	svidResp, err := c.mintX509SVID(ctx, client)
+	fmt.Printf("yihsuanc: spiffeId=%s\n", id)
+	svidResp, err := c.mintX509SVID(ctx, client, id.String())
 	if err != nil {
 		return err
 	}
@@ -74,13 +85,15 @@ func (c *mintCommand) run(ctx context.Context, env *commoncli.Env, client *workl
 		return c.printer.PrintStruct(&mintResult{
 			X509SVID:   svidResp.CertChain,
 			PrivateKey: svidResp.PrivateKey,
+			RootCAs:    svidResp.RootCAs,
 		})
 	}
 
-	svidPEM, keyPEM := convertSVIDResultToPEM(svidResp.CertChain, svidResp.PrivateKey)
+	svidPEM, keyPEM, bundlePEM := convertSVIDResultToPEM(svidResp.CertChain, svidResp.PrivateKey, svidResp.RootCAs)
 
 	svidPath := env.JoinPath(c.writePath, "svid.pem")
 	keyPath := env.JoinPath(c.writePath, "key.pem")
+	bundlePath := env.JoinPath(c.writePath, "bundle.pem")
 
 	if err := diskutil.WritePubliclyReadableFile(svidPath, svidPEM.Bytes()); err != nil {
 		return fmt.Errorf("unable to write SVID: %w", err)
@@ -90,15 +103,19 @@ func (c *mintCommand) run(ctx context.Context, env *commoncli.Env, client *workl
 		return fmt.Errorf("unable to write key: %w", err)
 	}
 
+	if err := diskutil.WritePrivateFile(bundlePath, bundlePEM.Bytes()); err != nil {
+		return fmt.Errorf("unable to write bundle: %w", err)
+	}
+
 	return nil
 
 }
 
-func (c *mintCommand) mintX509SVID(ctx context.Context, client *workloadClient) (*workload.MintX509SVIDResponse, error) {
+func (c *mintCommand) mintX509SVID(ctx context.Context, client *workloadClient, spiffeId string) (*workload.MintX509SVIDResponse, error) {
 	ctx, cancel := client.prepareContext(ctx)
 	defer cancel()
 	return client.MintX509SVID(ctx, &workload.MintX509SVIDRequest{
-		SpiffeId: c.spiffeID,
+		SpiffeId: spiffeId,
 	})
 }
 
@@ -113,7 +130,7 @@ func (c *mintCommand) prettyPrintX509(env *commoncli.Env, results ...interface{}
 			return errors.New("unexpected type")
 		}
 
-		svidPEM, keyPEM := convertSVIDResultToPEM(result.X509SVID, result.PrivateKey)
+		svidPEM, keyPEM, bundlePEM := convertSVIDResultToPEM(result.X509SVID, result.PrivateKey, result.RootCAs)
 
 		if err := env.Printf("X509-SVID:\n%s\n", svidPEM.String()); err != nil {
 			return err
@@ -121,9 +138,8 @@ func (c *mintCommand) prettyPrintX509(env *commoncli.Env, results ...interface{}
 		if err := env.Printf("Private key:\n%s\n", keyPEM.String()); err != nil {
 			return err
 		}
-		// return env.Printf("Root CAs:\n%s\n", bundlePEM.String())
+		return env.Printf("Root CAs:\n%s\n", bundlePEM.String())
 
-		return nil
 	}
 
 	return cliprinter.ErrInternalCustomPrettyFunc
@@ -131,7 +147,7 @@ func (c *mintCommand) prettyPrintX509(env *commoncli.Env, results ...interface{}
 	// return nil
 }
 
-func convertSVIDResultToPEM(svidCertChain [][]byte, privateKey []byte) (*bytes.Buffer, *bytes.Buffer) {
+func convertSVIDResultToPEM(svidCertChain [][]byte, privateKey []byte, rootCAs [][]byte) (*bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
 	svidPEM := new(bytes.Buffer)
 	for _, certDER := range svidCertChain {
 		_ = pem.Encode(svidPEM, &pem.Block{
@@ -146,12 +162,12 @@ func convertSVIDResultToPEM(svidCertChain [][]byte, privateKey []byte) (*bytes.B
 		Bytes: privateKey,
 	})
 
-	// bundlePEM := new(bytes.Buffer)
-	// for _, rootCA := range rootCAs {
-	// 	_ = pem.Encode(bundlePEM, &pem.Block{
-	// 		Type:  "CERTIFICATE",
-	// 		Bytes: rootCA,
-	// 	})
-	// }
-	return svidPEM, keyPEM
+	bundlePEM := new(bytes.Buffer)
+	for _, rootCA := range rootCAs {
+		_ = pem.Encode(bundlePEM, &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: rootCA,
+		})
+	}
+	return svidPEM, keyPEM, bundlePEM
 }

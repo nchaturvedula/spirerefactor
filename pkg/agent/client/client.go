@@ -52,6 +52,7 @@ type Client interface {
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
 	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error)
+	GetBundles(ctx context.Context) (*types.Bundle, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -444,6 +445,27 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	}
 
 	return bundles, nil
+}
+
+func (c *client) GetBundles(ctx context.Context) (*types.Bundle, error) {
+	bundleClient, connection, err := c.newBundleClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer connection.Release()
+
+	// var bundles []*types.Bundle
+
+	// Get bundle
+	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
+	if err != nil {
+		c.release(connection)
+		c.c.Log.WithError(err).Error("Failed to fetch bundle")
+		return nil, fmt.Errorf("failed to fetch bundle: %w", err)
+	}
+	// bundles = append(bundles, bundle)
+
+	return bundle, nil
 }
 
 func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {

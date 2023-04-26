@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -36,6 +37,7 @@ type Manager interface {
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
 	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error)
+	GetBundles(ctx context.Context) (*types.Bundle, error)
 }
 
 type Attestor interface {
@@ -74,15 +76,32 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *workload.MintX509SVIDRe
 	certChain, key, err := h.c.Manager.MintX509SVID(ctx, req.SpiffeId)
 
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "mint x509 client call failed", err)
+		return nil, status.Errorf(codes.Internal, "failed to get response from MintX509SVID", err)
 	}
 
 	if certChain == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "that x509svid is nil. ", err)
+		return nil, status.Errorf(codes.Internal, "MintX509SVID cert chain is empty ", err)
+	}
+
+	bundle, err := h.c.Manager.GetBundles(ctx)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get bundles", err)
+	}
+
+	if bundle == nil || len(bundle.X509Authorities) == 0 {
+		return nil, status.Errorf(codes.Internal, "Bundles is empty", err)
+	}
+
+	rootCAs := make([][]byte, len(bundle.X509Authorities))
+	for i, rootCA := range bundle.X509Authorities {
+		rootCAs[i] = rootCA.Asn1
 	}
 
 	resp.CertChain = certChain
 	resp.PrivateKey, err = x509.MarshalPKCS8PrivateKey(key)
+	resp.RootCAs = rootCAs
+
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "key is invalid", err)
 	}
