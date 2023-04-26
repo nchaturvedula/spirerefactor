@@ -51,7 +51,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
-	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -198,7 +198,7 @@ func ttlToSeconds(ttl time.Duration) int32 {
 	return int32((ttl + time.Second - 1) / time.Second)
 }
 
-func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error) {
+func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error) {
 	fmt.Println("yihsuanc: client.go, enter MintX509SVID")
 
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
@@ -212,7 +212,7 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, e
 	fmt.Println("yihsuanc: (client.go MintX509SVID) after newSVIDClient")
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer connection.Release()
 
@@ -221,14 +221,14 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, e
 	key, err := generateKey()
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to generate key: %w", err)
+		return nil, nil, fmt.Errorf("unable to generate key: %w", err)
 	}
 
 	fmt.Println("yihsuanc: (client.go MintX509SVID) about to get id from spiffeID")
 
 	id, err := spiffeid.FromString(spiffeID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	fmt.Println("yihsuanc: (client.go MintX509SVID) after creating id")
@@ -244,22 +244,20 @@ func (c *client) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, e
 
 	resp, err := svidClient.MintX509SVID(ctx, &svidv1.MintX509SVIDRequest{
 		Csr: csr,
-		Ttl: (int32(time.Minute.Seconds())),
+		Ttl: (int32(time.Hour.Seconds())),
 	})
 
 	fmt.Println("yihsuanc: (client.go MintX509SVID) after calling svidClient.MintX509SVID")
 
 	if err != nil {
-		return nil, fmt.Errorf("unable to mint SVID: %w", err)
+		return nil, nil, fmt.Errorf("unable to mint SVID: %w", err)
 	}
 
 	if len(resp.Svid.CertChain) == 0 {
-		return nil, fmt.Errorf("missing SVID chain")
+		return nil, nil, fmt.Errorf("missing SVID chain")
 	}
 
-	fmt.Println(resp)
-
-	return resp.Svid.CertChain, nil
+	return resp.Svid.CertChain, key, nil
 
 }
 func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {

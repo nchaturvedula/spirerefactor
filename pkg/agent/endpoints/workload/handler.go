@@ -35,7 +35,7 @@ type Manager interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, spiffeID spiffeid.ID, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
-	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error)
 }
 
 type Attestor interface {
@@ -71,17 +71,21 @@ func (h *Handler) MintX509SVID(ctx context.Context, req *workload.MintX509SVIDRe
 
 	resp = new(workload.MintX509SVIDResponse)
 
-	x509svid, err := h.c.Manager.MintX509SVID(ctx, req.SpiffeId)
+	certChain, key, err := h.c.Manager.MintX509SVID(ctx, req.SpiffeId)
 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "mint x509 client call failed", err)
 	}
 
-	if x509svid == nil {
+	if certChain == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "that x509svid is nil. ", err)
 	}
 
-	resp.Svids = x509svid
+	resp.CertChain = certChain
+	resp.PrivateKey, err = x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "key is invalid", err)
+	}
 
 	return resp, nil
 }

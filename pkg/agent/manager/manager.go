@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -75,7 +76,7 @@ type Manager interface {
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
 
-	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error)
+	MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error)
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -382,9 +383,9 @@ func (m *manager) deleteSVID() {
 	}
 }
 
-func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, error) {
+func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, crypto.Signer, error) {
 	fmt.Println("yihsuanc: (manager.go) MintX509SVID")
-	resp, err := m.client.MintX509SVID(ctx, spiffeID)
+	cert_chain, key, err := m.client.MintX509SVID(ctx, spiffeID)
 
 	if err != nil {
 
@@ -392,9 +393,9 @@ func (m *manager) MintX509SVID(ctx context.Context, spiffeID string) ([][]byte, 
 		m.c.Log.WithError(err).Error(err)
 	}
 
-	if resp == nil {
+	if cert_chain == nil {
 		m.c.Log.WithError(err).Error("mint client returned nil")
 	}
 
-	return resp, nil
+	return cert_chain, key, nil
 }
