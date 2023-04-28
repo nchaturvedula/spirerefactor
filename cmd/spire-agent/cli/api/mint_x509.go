@@ -19,10 +19,12 @@ import (
 )
 
 type mintCommand struct {
-	printer   cliprinter.Printer
-	env       *commoncli.Env
-	serverId  string
-	writePath string
+	printer      cliprinter.Printer
+	env          *commoncli.Env
+	serverId     string
+	writePath    string
+	trustDomain  string
+	customerName string
 }
 
 type mintResult struct {
@@ -40,8 +42,11 @@ func newMintCommand(env *commoncli.Env, clientMaker workloadClientMaker) cli.Com
 }
 
 func (c *mintCommand) appendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.serverId, "serverId", "", "server id subject (optional)")
+	fs.StringVar(&c.serverId, "guid", "", "server guid subject (optional)")
 	fs.StringVar(&c.writePath, "write", "", "Write SVID data to the specified path (optional; only available for pretty output format)")
+	fs.StringVar(&c.trustDomain, "domain", "", "specify trust domain name to form spiffe id")
+	fs.StringVar(&c.customerName, "customer", "", "customer name")
+
 	outputValue := cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintX509)
 	fs.Var(outputValue, "format", "deprecated; use -output")
 }
@@ -62,7 +67,15 @@ func (c *mintCommand) run(ctx context.Context, env *commoncli.Env, client *workl
 
 	fmt.Printf("yihsuanc: guid=%s\n", c.serverId)
 
-	id, err := spiffeid.FromStringf("spiffe://example.org/testing/%s", c.serverId)
+	td, err := spiffeid.TrustDomainFromString(c.trustDomain)
+
+	if err != nil {
+		return fmt.Errorf("the trust domain cannot be generated")
+	}
+
+	id, err := spiffeid.FromSegments(td, c.customerName, c.serverId)
+
+	// id, err := spiffeid.FromStringf("spiffe://example.org/testing/%s", c.serverId)
 	if err != nil {
 		return fmt.Errorf("cannot form a spiffe id")
 	}
